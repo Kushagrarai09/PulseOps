@@ -1,5 +1,4 @@
 export type MachineStatus = "running" | "idle" | "stopped" | "fault";
-
 export interface TelemetryMessage {
   temperature: number;
   pressure: number;
