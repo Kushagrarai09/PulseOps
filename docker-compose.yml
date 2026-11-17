@@ -1,0 +1,65 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: iiot-postgres
+    environment:
+      POSTGRES_DB: iiot_monitor
+      POSTGRES_USER: iiot
+      POSTGRES_PASSWORD: iiot_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iiot -d iiot_monitor"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: iiot-mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  backend:
+    build: ./backend
+    container_name: iiot-backend
+    environment:
+      PORT: 4000
+      DATABASE_URL: postgres://iiot:iiot_dev_password@postgres:5432/iiot_monitor
+      MQTT_URL: mqtt://mosquitto:1883
+      CORS_ORIGIN: http://localhost:5173
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+
+  frontend:
+    build: ./frontend
+    container_name: iiot-frontend
+    environment:
+      VITE_API_URL: http://localhost:4000
+      VITE_SOCKET_URL: http://localhost:4000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+  simulator:
+    build: ./simulator
+    container_name: iiot-simulator
+    environment:
+      MQTT_URL: mqtt://mosquitto:1883
+      PUBLISH_INTERVAL: 2
+    depends_on:
+      - mosquitto
+      - backend
+
+volumes:
+  postgres_data:
